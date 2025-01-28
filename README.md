@@ -53,3 +53,26 @@ pushd
 cd ./denoquic
 popd
 ```
+
+### More debugging
+
+Typescript makes setting up the QUIC server easy, however the TLS1.3 config can
+run into many and varied issues. The following tools and help debuggin QUIC
+connections
+
+1. Wireshark on loopback with display filter set to upd.port == 3090
+2. handlshake packets encrypte and can be decrypted for viewing in wireshark.
+   search for SSLKEYLOGFILE on google and follow https://wiki.wireshark.org/TLS
+3. QUICHE Rust repo provides basic tools for checking basic functionality.
+4. You can bisect issues by mixmatching servers and clients across (DENO, NODE,
+   QUICHE)
+
+```
+RUST_LOG=debug cargo run --bin quiche-server \
+-- --cert ../nodequic/certs/quic-cert.pem --key ../nodequic/certs/quic-key.pem \
+--listen 127.0.0.1:3090
+
+ RUST_LOG=quiche::tls=trace cargo run --bin quiche-client -- \ 
+  --no-verify --trust-origin-ca-pem ../nodequic/certs/quic-cert.pem \
+  https://127.0.0.1:3090
+```
