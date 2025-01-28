@@ -1,0 +1,10 @@
+{
+  "tasks": {
+    "dev": "deno run --watch main.ts",
+    "startserver": "deno run --unstable-net --allow-all  server.ts",
+    "startclient": "deno run --unstable-net --allow-all  client.ts"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@1"
+  }
+}
