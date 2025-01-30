@@ -1,29 +1,89 @@
-import { QUICClient, QUICServer, QUICSocket } from "@matrixai/quic";
+import { events, QUICClient, QUICServer, QUICStream } from "@matrixai/quic";
 import Logger, { formatting, LogLevel, StreamHandler } from "@matrixai/logger";
-import {
-  clientCryptoOps,
-  generateKeyHMAC,
-  generateRSAKey,
-  generateRSAX509,
-  keyPairRSAToPEM,
-  randomBytes,
-  serverCryptoOps,
-} from "./x509crypt";
-import { start } from "repl";
+import { clientCryptoOps, generateKeyHMAC, serverCryptoOps } from "./x509crypt";
+import process from "node:process";
+import { Buffer } from "node:buffer";
 
 let server: QUICServer | undefined;
 let client: QUICClient | undefined;
 const QUIC_SERVER_PORT = 3090;
 const localhost = "localhost";
-const { promises: fs } = require("fs");
+const { promises: fs } = require("node:fs");
 let privateKey: string;
 let certificate: string;
 
+enum StreamType {
+  Events = 0,
+  Actions = 1,
+  Proposals = 2,
+}
+
 async function loadCertificates() {
   privateKey = await fs.readFile("../certs/quic-key.pem", "utf8");
-  console.log("loading key", privateKey);
   certificate = await fs.readFile("../certs/quic-cert.pem", "utf8");
-  console.log("loading cert", certificate);
+}
+
+async function processEventsStream(stream: QUICStream) {
+  console.log("Handling Events stream...");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+async function processActionsStream(stream: QUICStream) {
+  console.log("Handling Actions stream...");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  // Read/write logic for Actions stream
+}
+
+async function processProposalsStream(stream: QUICStream) {
+  console.log("Handling Proposals stream...");
+  await new Promise((resolve) => setTimeout(resolve, 0)); //
+  // Read/write logic for Proposals stream
+}
+
+async function startStream(evt: Event) {
+  const stream_event = evt as events.EventQUICConnectionStream;
+  const stream = stream_event.detail;
+  const reader = stream.readable.getReader(); // Use default reader mode
+  const buffer = new Uint8Array(1); // Create a buffer of 1 byte
+
+  try {
+    // Read one byte from the reader
+    const { value, done } = await reader.read();
+    if (done) {
+      console.log("Stream ended");
+      return null;
+    }
+    buffer.set(value.slice(0, 1)); // Copy the first byte to the buffer
+    console.log("Read byte:", buffer[0]);
+
+    // Determine the stream type and process accordingly
+    switch (buffer[0] as StreamType) {
+      case StreamType.Events:
+        await processEventsStream(stream);
+        break;
+      case StreamType.Actions:
+        await processActionsStream(stream);
+        break;
+      case StreamType.Proposals:
+        await processProposalsStream(stream);
+        break;
+      default:
+        console.log("Unknown stream type");
+        return null;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+function newConnection(evt: Event) {
+  const conn_evt = evt as events.EventQUICServerConnection;
+  const connection = conn_evt.detail;
+  console.log("Connection received");
+  connection.addEventListener(
+    events.EventQUICConnectionStream.name,
+    startStream,
+  );
 }
 
 async function startServer() {
@@ -55,6 +115,11 @@ async function startServer() {
     logger: logger.getChild("QUICServer"),
   });
 
+  server.addEventListener(
+    events.EventQUICServerConnection.name,
+    newConnection,
+  );
+
   await server.start({
     host: localhost,
     port: QUIC_SERVER_PORT,
@@ -71,7 +136,7 @@ async function startClient() {
   ]);
 
   console.log("Creating QUIC client");
-  const client1 = await QUICClient.createQUICClient({
+  client = await QUICClient.createQUICClient({
     host: localhost,
     port: QUIC_SERVER_PORT,
     localHost: localhost,
@@ -94,12 +159,18 @@ async function startClient() {
       },
     },
   });
+
+  const clientStream = client.connection.newStream();
+  const writer = clientStream.writable.getWriter();
+  const eventTypeBuffer = new Uint8Array([StreamType.Events]);
+  await writer.write(eventTypeBuffer);
+  await clientStream.destroy();
 }
 
 async function main(mode: "server" | "client" = "server") {
   await loadCertificates();
   if (mode === "server") {
-    await startServer();
+    await startClient();
   } else {
     await startClient();
   }
