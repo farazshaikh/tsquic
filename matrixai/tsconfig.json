@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "module": "CommonJS",             // Use CommonJS for better compatibility
-    "target": "ES2017",               // Keep ES2017 for async/await support
+    "target": "ES2020",               // Keep ES2017 for async/await support
     "moduleResolution": "Node",       // Node.js-style module resolution
     "esModuleInterop": true,          // Support CommonJS default imports
     "allowSyntheticDefaultImports": true,
